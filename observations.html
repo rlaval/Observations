@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carte Météo Interactive</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 600px;
+        }
+        #form-container, #side-panel {
+            display: none;
+            position: fixed;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        #form-container {
+            width: 300px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #side-panel {
+            width: 300px;
+            right: 0;
+            top: 0;
+            height: 100%;
+            overflow-y: auto;
+        }
+        button.close {
+            background: none;
+            border: none;
+            font-size: 16px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+        }
+        img.preview {
+            max-width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Formulaire d'observation -->
+<div id="form-container">
+    <button class="close">&times;</button>
+    <h3>Observation Météo</h3>
+    <form id="weatherForm">
+        <label for="place">Lieu :</label>
+        <input type="text" id="place" name="place" required><br><br>
+        <label for="type">Type d'observation :</label>
+        <select id="type" name="type" required>
+            <option value="⛈️">Orage</option>
+            <option value="🌧️">Pluie</option>
+            <option value="🌧️🌧️">Pluie intense</option>
+            <option value="🌊">Inondation</option>
+            <option value="🌨️">Grêle</option>
+            <option value="❄️🌨️">Grosse grêle</option>
+            <option value="☁️">Nuageux</option>
+            <option value="🌫️">Brouillard</option>
+            <option value="❄️">Neige</option>
+            <option value="❄️❄️">Neige intense</option>
+            <option value="💨">Vent</option>
+            <option value="🌬️">Vent violent</option>
+            <option value="🌪️">Tornade ou trombe</option>
+            <option value="🛠️">Dégâts</option>
+        </select><br><br>
+        <label for="details">Détails :</label>
+        <textarea id="details" name="details" required></textarea><br><br>
+        <label for="date-time">Date et Heure :</label>
+        <input type="datetime-local" id="date-time" name="date-time" required><br><br>
+        <label for="image">Ajouter une image :</label>
+        <input type="file" id="image" name="image" accept="image/*"><br>
+        <img id="image-preview" class="preview" src="" alt="Aperçu de l'image"><br>
+        <input type="submit" value="Soumettre">
+    </form>
+</div>
+
+<!-- Panneau latéral -->
+<div id="side-panel">
+    <button class="close">&times;</button>
+    <h3>Détails de l'Observation</h3>
+    <p><strong>Lieu :</strong> <span id="panel-place"></span></p>
+    <p><strong>Type :</strong> <span id="panel-type"></span></p>
+    <p><strong>Détails :</strong> <span id="panel-details"></span></p>
+    <p><strong>Date et Heure :</strong> <span id="panel-date-time"></span></p>
+    <img id="panel-image" class="preview" src="" alt="Image associée">
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+// Initialisation de la carte
+const map = L.map('map').setView([48.8566, 2.3522], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let currentMarker = null;
+
+// Fonction pour ajouter un marqueur
+function addMarker(latlng, observationData) {
+    const iconHtml = observationData.type;
+    const customIcon = L.divIcon({
+        html: `<span style="font-size: 24px;">${iconHtml}</span>`,
+        className: 'custom-icon'
+    });
+    const marker = L.marker(latlng, { icon: customIcon }).addTo(map);
+    marker.on('click', () => {
+        showSidePanel(observationData);
+    });
+    return marker;
+}
+
+// Fonction pour afficher le panneau latéral
+function showSidePanel(data) {
+    document.getElementById('panel-place').textContent = data.place;
+    document.getElementById('panel-type').textContent = getTypeName(data.type);
+    document.getElementById('panel-details').textContent = data.details;
+    document.getElementById('panel-date-time').textContent = data.dateTime;
+    document.getElementById('panel-image').src = data.imageUrl || '';
+    document.getElementById('side-panel').style.display = 'block';
+}
+
+// Fonction pour obtenir le nom du type à partir de l'emoji
+function getTypeName(typeEmoji) {
+    const typeNames = {
+        '⛈️': 'Orage',
+        '🌧️': 'Pluie',
+        '🌧️🌧️': 'Pluie intense',
+        '🌊': 'Inondation',
+        '🌨️': 'Grêle',
+        '❄️🌨️': 'Grosse grêle',
+        '☁️': 'Nuageux',
+        '🌫️': 'Brouillard',
+        '❄️': 'Neige',
+        '❄️❄️': 'Neige intense',
+        '💨': 'Vent',
+        '🌬️': 'Vent violent',
+        '🌪️': 'Tornade ou trombe',
+        '🛠️': 'Dégâts'
+    };
+    return typeNames[typeEmoji] || 'Type inconnu';
+}
+
+// Événement pour fermer le panneau latéral
+document.querySelector('#side-panel .close').addEventListener('click', () => {
+    document.getElementById('side-panel').style.display = 'none';
+});
+
+// Gérer les clics sur la carte
+map.on('click', event => {
+    if (currentMarker) map.removeLayer(currentMarker);
+    currentMarker = L.marker(event.latlng).addTo(map);
+    document.getElementById('form-container').style.display = 'block';
+});
+
+// Fermer le formulaire
+document.querySelector('#form-container .close').addEventListener('click', () => {
+    document.getElementById('form-container').style.display = 'none';
+    if (currentMarker) {
+        map.removeLayer(currentMarker);
+        currentMarker = null;
+    }
+});
+
+// Prévisualisation de l'image dans le formulaire
+document.getElementById('image').addEventListener('change', event => {
+    const file = event.target.files[0];
+    const preview = document.getElementById('image-preview');
+    preview.src = file ? URL.createObjectURL(file) : '';
+});
+
+// Soumettre le formulaire
+document.getElementById('weatherForm').addEventListener('submit', event => {
+    event.preventDefault();
+    if (!currentMarker) return;
+
+    const place = document.getElementById('place').value;
+    const type = document.getElementById('type').value;
+    const details = document.getElementById('details').value;
+    const dateTime = document.getElementById('date-time').value;
+    const imageFile = document.getElementById('image').files[0];
+    const imageUrl = imageFile ? URL.createObjectURL(imageFile) : '';
+    const latlng = currentMarker.getLatLng();
+
+    const observationData = { place, type, details, dateTime, imageUrl, lat: latlng.lat, lng: latlng.lng, timestamp: Date.now() };
+
+    // Sauvegarder l'observation dans le localStorage
+    saveObservation(observationData);
+
+    // Ajouter un marqueur permanent avec observation
+    addMarker(latlng, observationData);
+
+    // Afficher immédiatement le panneau latéral pour la nouvelle observation
+    showSidePanel(observationData);
+
+    // Réinitialiser le formulaire
+    document.getElementById('form-container').style.display = 'none';
+    document.getElementById('weatherForm').reset();
+    document.getElementById('image-preview').src = '';
+    map.removeLayer(currentMarker);
+    currentMarker = null;
+});
+
+// Fonction pour sauvegarder l'observation dans le localStorage
+function saveObservation(observationData) {
+    let observations = JSON.parse(localStorage.getItem('observations')) || [];
+    observations.push(observationData);
+    localStorage.setItem('observations', JSON.stringify(observations));
+}
+
+// Fonction pour charger les observations depuis le localStorage
+function loadObservations() {
+    let observations = JSON.parse(localStorage.getItem('observations')) || [];
+    const currentTime = Date.now();
+
+    // Garder seulement les observations dans les 4 heures
+    observations = observations.filter(observation => (currentTime - observation.timestamp) < 4 * 60 * 60 * 1000);
+
+    // Afficher les observations valides sur la carte
+    observations.forEach(observation => {
+        addMarker([observation.lat, observation.lng], observation);
+    });
+
+    // Réenregistrer les observations valides
+    localStorage.setItem('observations', JSON.stringify(observations));
+}
+
+// Charger les observations au démarrage
+window.onload = loadObservations;
+</script>
+
+</body>
+</html>
